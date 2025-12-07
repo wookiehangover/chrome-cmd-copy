@@ -67,6 +67,48 @@
   opacity: 0.7;
 }
 
+.element-picker-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  pointer-events: auto;
+}
+
+.element-picker-type-select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.element-picker-type-select:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.element-picker-type-select option {
+  background: #333;
+  color: white;
+}
+
+.element-picker-type {
+  font-size: 10px;
+  opacity: 0;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.element-picker-type.visible {
+  opacity: 1;
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;

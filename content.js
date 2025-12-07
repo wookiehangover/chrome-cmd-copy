@@ -234,6 +234,15 @@ let elementPickerActive = false;
 let currentHighlightedElement = null;
 let pickerOverlay = null;
 let selectedElement = null;
+let forcedType = null; // null = auto, or 'table', 'text', 'image', 'visual'
+
+/**
+ * Set the forced type for element picking
+ * @param {string|null} type - The type to force, or null for auto
+ */
+function setForcedType(type) {
+  forcedType = type;
+}
 
 /**
  * Create and show the picker overlay
@@ -250,8 +259,35 @@ function createPickerOverlay() {
     overlay.innerHTML = `
       <div class="element-picker-message">
         <span>Element Picker Active</span>
+        <div class="element-picker-toolbar">
+          <select class="element-picker-type-select" id="element-picker-type-select">
+            <option value="auto">auto</option>
+            <option value="table">table</option>
+            <option value="text">text</option>
+            <option value="visual">visual</option>
+          </select>
+          <span class="element-picker-type" id="element-picker-type"></span>
+        </div>
       </div>
     `;
+
+    // Prevent toolbar interactions from triggering picker
+    const toolbar = overlay.querySelector('.element-picker-toolbar');
+    toolbar.addEventListener('click', (e) => e.stopPropagation());
+    toolbar.addEventListener('mousedown', (e) => e.stopPropagation());
+
+    // Add change handler for type select
+    const typeSelect = overlay.querySelector('.element-picker-type-select');
+    typeSelect.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const type = typeSelect.value;
+      setForcedType(type === 'auto' ? null : type);
+      // Update the type indicator if there's a highlighted element
+      if (currentHighlightedElement) {
+        const displayType = forcedType || detectElementType(currentHighlightedElement);
+        updateTypeIndicator(displayType);
+      }
+    });
 
     if (!document.body) {
       throw new Error('Document body not available');
@@ -319,6 +355,7 @@ function startElementPicker() {
     }
 
     elementPickerActive = true;
+    forcedType = null; // Reset to auto mode
 
     try {
       createPickerOverlay();
@@ -351,6 +388,23 @@ function startElementPicker() {
 }
 
 /**
+ * Update the type indicator in the picker overlay
+ * @param {string|null} type - The detected type or null to hide
+ */
+function updateTypeIndicator(type) {
+  const typeIndicator = document.getElementById('element-picker-type');
+  if (typeIndicator) {
+    if (type) {
+      typeIndicator.textContent = type;
+      typeIndicator.classList.add('visible');
+    } else {
+      typeIndicator.textContent = '';
+      typeIndicator.classList.remove('visible');
+    }
+  }
+}
+
+/**
  * Handle mouse move during picker mode
  */
 function handlePickerMouseMove(event) {
@@ -363,8 +417,12 @@ function handlePickerMouseMove(event) {
   if (element && element !== pickerOverlay && element.parentElement !== pickerOverlay &&
       element.tagName !== 'HTML' && element.tagName !== 'BODY') {
     highlightElement(element);
+    // Update type indicator with forced or detected type
+    const elementType = forcedType || detectElementType(element);
+    updateTypeIndicator(elementType);
   } else {
     removeHighlight();
+    updateTypeIndicator(null);
   }
 }
 
@@ -373,6 +431,11 @@ function handlePickerMouseMove(event) {
  */
 async function handlePickerClick(event) {
   if (!elementPickerActive) return;
+
+  // Ignore clicks on the overlay toolbar (select, etc.)
+  if (pickerOverlay && pickerOverlay.contains(event.target)) {
+    return;
+  }
 
   try {
     event.preventDefault();
@@ -387,9 +450,9 @@ async function handlePickerClick(event) {
       selectedElement = element;
       console.log('[Clean Link Copy] Element selected:', element);
 
-      // Detect element type and handle copying
-      const elementType = detectElementType(element);
-      console.log('[Clean Link Copy] Detected element type:', elementType);
+      // Use forced type or detect element type
+      const elementType = forcedType || detectElementType(element);
+      console.log('[Clean Link Copy] Element type:', elementType, forcedType ? '(forced)' : '(auto)');
 
       // Exit picker mode before handling copy
       stopElementPicker();
@@ -660,36 +723,26 @@ function hasVisualStyling(element) {
 /**
  * Calculate the text-to-element ratio for an element
  * @param {Element} element - The element to analyze
- * @returns {number} - Ratio of text content to child elements (higher = more text-heavy)
+ * @returns {number} - Ratio of text content to descendant elements (higher = more text-heavy)
  */
 function calculateTextRatio(element) {
   if (!element) return 0;
 
-  // Count text nodes (excluding whitespace-only nodes)
-  let textNodeCount = 0;
-  let totalCharacters = 0;
+  // Get total text content length (all text recursively, trimmed)
+  const text = (element.innerText || element.textContent || '').trim();
+  const totalCharacters = text.length;
 
-  for (const node of element.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent.trim();
-      if (text.length > 0) {
-        textNodeCount++;
-        totalCharacters += text.length;
-      }
-    }
-  }
+  // Count all descendant elements (not just direct children)
+  const descendantElementCount = element.querySelectorAll('*').length;
 
-  // Count child elements
-  const childElementCount = element.children.length;
-
-  // If no child elements, it's text-heavy
-  if (childElementCount === 0) {
+  // If no descendant elements, it's text-heavy if there's text
+  if (descendantElementCount === 0) {
     return totalCharacters > 0 ? 100 : 0;
   }
 
-  // Calculate ratio: text characters per child element
+  // Calculate ratio: text characters per descendant element
   // Higher ratio means more text relative to structure
-  const ratio = totalCharacters / childElementCount;
+  const ratio = totalCharacters / descendantElementCount;
 
   return ratio;
 }
