@@ -666,24 +666,46 @@ async function handlePageSelection() {
 }
 
 /**
- * Handle full page screenshot - capture the entire visible viewport
+ * Handle full page screenshot - capture the entire page by scrolling
  */
 async function handleFullPageScreenshot() {
   try {
     console.log("[Clean Link Copy] Capturing full page screenshot");
 
-    // Get viewport dimensions
+    // Get full page dimensions
+    const scrollWidth = Math.max(
+      document.body.scrollWidth,
+      document.documentElement.scrollWidth,
+    );
+    const scrollHeight = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+    );
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const devicePixelRatio = window.devicePixelRatio || 1;
 
+    // Store original scroll position to restore later
+    const originalScrollX = window.scrollX;
+    const originalScrollY = window.scrollY;
+
     const message = {
       action: "captureFullPage",
-      devicePixelRatio: devicePixelRatio,
+      pageInfo: {
+        scrollWidth,
+        scrollHeight,
+        viewportWidth,
+        viewportHeight,
+        devicePixelRatio,
+        originalScrollX,
+        originalScrollY,
+      },
     };
 
     console.log(
-      "[Clean Link Copy] Requesting full page screenshot, viewport:",
+      "[Clean Link Copy] Requesting full page screenshot, page:",
+      scrollWidth + "x" + scrollHeight,
+      "viewport:",
       viewportWidth + "x" + viewportHeight,
       "devicePixelRatio:",
       devicePixelRatio,
@@ -725,7 +747,7 @@ async function handleFullPageScreenshot() {
           .then((blob) => copyImageToClipboard(blob))
           .then((success) => {
             if (success) {
-              showToast("✓ Page screenshot copied");
+              showToast("✓ Full page screenshot copied");
             } else {
               showToast("× Failed to copy page screenshot");
             }
@@ -1412,6 +1434,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true });
       } catch (error) {
         console.error("[Clean Link Copy] Error in startElementPicker:", error);
+        sendResponse({ success: false, error: error.message });
+      }
+    } else if (message.action === "scrollTo") {
+      // Handle scroll request from background script for full page capture
+      try {
+        window.scrollTo(message.x, message.y);
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error("[Clean Link Copy] Error in scrollTo:", error);
         sendResponse({ success: false, error: error.message });
       }
     } else {
